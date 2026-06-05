@@ -47,6 +47,7 @@ from lerobot.datasets import EpisodeAwareSampler, make_dataset
 from lerobot.envs import close_envs, make_env, make_env_pre_post_processors
 from lerobot.optim.factory import make_optimizer_and_scheduler
 from lerobot.policies import PreTrainedPolicy, make_policy, make_pre_post_processors
+from lerobot.processor import rename_stats
 from lerobot.rewards import make_reward_pre_post_processors
 from lerobot.utils.collate import lerobot_collate_fn
 from lerobot.utils.import_utils import register_third_party_plugins
@@ -312,10 +313,13 @@ def train(cfg: TrainPipelineConfig, accelerator: "Accelerator | None" = None):
         processor_kwargs["dataset_meta"] = dataset.meta
 
     if not cfg.is_reward_model_training and processor_pretrained_path is not None:
+        renamed_stats = (
+            rename_stats(dataset.meta.stats, cfg.rename_map) if cfg.rename_map else dataset.meta.stats
+        )
         processor_kwargs["preprocessor_overrides"] = {
             "device_processor": {"device": device.type},
             "normalizer_processor": {
-                "stats": dataset.meta.stats,
+                "stats": renamed_stats,
                 "features": {**policy.config.input_features, **policy.config.output_features},
                 "norm_map": policy.config.normalization_mapping,
             },
@@ -325,7 +329,7 @@ def train(cfg: TrainPipelineConfig, accelerator: "Accelerator | None" = None):
         }
         postprocessor_kwargs["postprocessor_overrides"] = {
             "unnormalizer_processor": {
-                "stats": dataset.meta.stats,
+                "stats": renamed_stats,
                 "features": policy.config.output_features,
                 "norm_map": policy.config.normalization_mapping,
             },
